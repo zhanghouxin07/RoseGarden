@@ -1,0 +1,26 @@
+{
+    "router": {
+        "ip": "192.168.1.1",
+        "username": "useradmin",
+        "password": "mt46s",
+        "login_url": "/cgi-bin/luci",
+        "devices_url": "/cgi-bin/luci/admin/device/devInfo?type=0"
+    },
+    "monitor": {
+        "duration": 15,
+        "interval": 5,
+        "data_file": "router_monitor_data.json",
+        "report_file": "bandwidth_report.png"
+    },
+    "parsers": {
+        "devices": {
+            "type": "json",
+            "ip_field": "ip",
+            "mac_field": "mac",
+            "name_field": "type",
+            "status_field": "system",
+            "up_speed_field": "upSpeed",
+            "down_speed_field": "downSpeed"
+        }
+    }
+}
