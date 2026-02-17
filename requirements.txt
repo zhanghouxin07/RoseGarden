@@ -4,3 +4,5 @@ lxml
 psutil
 pandas
 matplotlib
+huaweicloudsdkcore
+huaweicloudsdkaom

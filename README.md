@@ -1,134 +1,130 @@
 # RoseGarden - 路由器监测工具
 
-RoseGarden 是一个用于监测路由器连接设备网速和活动情况的工具。它可以帮助你了解网络中各设备的带宽使用情况，及时发现网络异常。
+RoseGarden 是一个用于监测路由器连接设备网速和活动情况的工具，支持将数据上报到华为云AOM进行可视化监控。
 
 ## 功能特性
 
-- 自动登录路由器管理界面
+- 自动登录路由器管理界面（支持中国电信智能网关）
 - 检测并列出所有连接的设备
-- 实时监测带宽使用情况
+- 实时监测每个设备的上传/下载速度
 - 保存监测数据到 JSON 文件
 - 生成带宽使用报告图表
+- 支持上报指标到华为云AOM
 
 ## 安装依赖
 
-在运行脚本之前，需要安装以下依赖包：
-
 ```bash
-pip install -r requirements.txt
+py -m pip install requests pandas matplotlib psutil
 ```
 
-## 配置路由器信息
+## 配置
 
-在运行脚本之前，需要根据你的路由器型号修改 `config.json` 文件中的配置信息：
+### 基础配置
+
+修改 `config.json` 文件：
 
 ```json
 {
     "router": {
-        "ip": "192.168.1.1",  // 路由器 IP 地址
-        "username": "admin",  // 路由器登录用户名
-        "password": "admin",  // 路由器登录密码
-        "login_url": "/login.cgi",  // 登录页面路径
-        "devices_url": "/devices.cgi",  // 设备列表页面路径
-        "bandwidth_url": "/bandwidth.cgi"  // 带宽监测页面路径
+        "ip": "192.168.1.1",
+        "username": "useradmin",
+        "password": "your_password",
+        "login_url": "/cgi-bin/luci",
+        "devices_url": "/cgi-bin/luci/admin/device/devInfo?type=0"
     },
     "monitor": {
-        "duration": 60,  // 监测持续时间（秒）
-        "interval": 5,  // 监测间隔（秒）
-        "data_file": "router_monitor_data.json",  // 数据保存文件
-        "report_file": "bandwidth_report.png"  // 报告图表文件
-    },
-    "parsers": {
-        "devices": {
-            "row_selector": "tr.device-row",  // 设备行选择器
-            "ip_selector": "td.ip",  // IP 地址选择器
-            "mac_selector": "td.mac",  // MAC 地址选择器
-            "name_selector": "td.name",  // 设备名称选择器
-            "status_selector": "td.status"  // 设备状态选择器
-        }
+        "duration": 60,
+        "interval": 5
     }
 }
 ```
 
-### 配置说明
+### 华为云AOM配置
 
-- **router.ip**: 你的路由器网关地址，通常是 `192.168.1.1` 或 `192.168.0.1`
-- **router.username** 和 **router.password**: 登录路由器管理界面的用户名和密码
-- **router.login_url**, **router.devices_url**: 这些路径可能因路由器型号而异，需要根据实际情况修改
-- **parsers.devices**: 这些选择器用于解析路由器页面上的设备信息，需要根据实际页面结构修改
+1. 登录华为云控制台，进入 **应用运维管理 AOM**
+2. 在左侧菜单选择 **接入管理**
+3. 创建接入配置，获取以下信息：
+   - `project_id` - 项目ID
+   - `prometheus_id` - Prometheus实例ID
+   - `access_code` - 认证凭据
 
-## 运行脚本
+4. 修改 `config.json` 中的 `huaweicloud_aom` 配置：
 
-在配置完成后，运行以下命令启动监测：
-
-```bash
-python router_monitor.py
+```json
+{
+    "huaweicloud_aom": {
+        "enabled": true,
+        "region": "cn-north-4",
+        "project_id": "your_project_id",
+        "prometheus_id": "your_prometheus_id",
+        "access_code": "your_access_code"
+    }
+}
 ```
 
-## 查看结果
+#### 支持的区域
 
-运行完成后，你将看到以下输出：
+| 区域 | region 值 |
+|------|-----------|
+| 华北-北京一 | cn-north-1 |
+| 华北-北京四 | cn-north-4 |
+| 华东-上海一 | cn-east-3 |
+| 华东-上海二 | cn-east-2 |
+| 华南-广州 | cn-south-1 |
+| 中国-香港 | ap-southeast-1 |
+| 亚太-新加坡 | ap-southeast-3 |
 
-1. 登录状态
-2. 连接设备列表
-3. 实时带宽使用情况
-4. 数据保存位置
-5. 报告生成位置
+## 运行
 
-同时，脚本会生成以下文件：
+```bash
+py router_monitor.py
+```
 
-- **router_monitor_data.json**: 包含详细的带宽监测数据
-- **bandwidth_report.png**: 带宽使用情况的图表报告
+## 上报的指标
+
+当启用AOM上报后，以下指标会被推送到华为云：
+
+| 指标名称 | 说明 | 标签 |
+|----------|------|------|
+| `router_device_up_speed_bytes` | 设备上传速度 (Bytes/s) | device_id, device_ip, device_mac, device_type, device_system |
+| `router_device_down_speed_bytes` | 设备下载速度 (Bytes/s) | device_id, device_ip, device_mac, device_type, device_system |
+| `router_total_up_speed_bytes` | 总上传速度 (Bytes/s) | - |
+| `router_total_down_speed_bytes` | 总下载速度 (Bytes/s) | - |
+| `router_device_count` | 在线设备数量 | - |
+
+## 在AOM中查看数据
+
+1. 登录华为云AOM控制台
+2. 选择 **指标浏览** 或 **仪表盘**
+3. 使用PromQL查询，例如：
+   ```promql
+   # 查看所有设备的上传速度
+   router_device_up_speed_bytes
+   
+   # 按设备类型聚合
+   sum by (device_type) (router_device_up_speed_bytes)
+   
+   # 查看总带宽
+   router_total_up_speed_bytes
+   router_total_down_speed_bytes
+   ```
+
+## 配置告警
+
+在AOM中可以配置告警规则：
+
+1. 进入 **告警管理** > **告警规则**
+2. 创建规则，例如：
+   - 当 `router_device_count > 20` 时告警（设备过多）
+   - 当 `router_total_down_speed_bytes > 104857600` 时告警（下载超过100MB/s）
+
+## 输出文件
+
+- **router_monitor_data.json** - 监测数据
+- **bandwidth_report.png** - 带宽报告图表
 
 ## 注意事项
 
-1. 不同品牌和型号的路由器管理界面结构可能不同，需要根据实际情况修改配置文件中的路径和选择器
-2. 部分路由器可能有防爬虫机制，可能会导致脚本运行失败
-3. 脚本需要在能够访问路由器管理界面的网络环境中运行
-4. 长时间运行脚本可能会对路由器性能造成影响
-
-## 常见问题
-
-### 登录失败
-
-如果遇到登录失败的情况，请检查：
-
-1. 路由器 IP 地址是否正确
-2. 用户名和密码是否正确
-3. 登录页面路径是否正确
-
-### 无法获取设备列表
-
-如果无法获取设备列表，请检查：
-
-1. 设备列表页面路径是否正确
-2. 页面解析选择器是否与实际页面结构匹配
-
-### 带宽监测不准确
-
-如果带宽监测数据不准确，请检查：
-
-1. 监测间隔设置是否合理
-2. 网络接口名称是否正确（脚本默认监测 Ethernet、Wi-Fi 和 Local Area Connection）
-
-## 示例输出
-
-```
-登录成功!
-发现 5 个连接设备
-开始监测带宽使用情况，持续 60 秒，间隔 5 秒...
-[2026-02-16 15:30:00] Wi-Fi: 发送 1234.56 KB, 接收 7890.12 KB
-[2026-02-16 15:30:05] Wi-Fi: 发送 1345.67 KB, 接收 8901.23 KB
-...
-数据已保存到 router_monitor_data.json
-带宽报告已生成: bandwidth_report.png
-
-连接的设备:
-Device1 - 192.168.1.2 - AA:BB:CC:DD:EE:FF - 在线
-Device2 - 192.168.1.3 - GG:HH:II:JJ:KK:LL - 在线
-...
-```
-
-## 许可证
-
-本项目采用 MIT 许可证。
+1. 华为云AOM接入管理需要在支持的区域开通
+2. `access_code` 是敏感信息，请妥善保管
+3. 建议将监测间隔设置为30秒以上，避免上报过于频繁
