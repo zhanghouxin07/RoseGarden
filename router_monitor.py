@@ -130,7 +130,8 @@ class RouterMonitor:
         self.device_detail_url = self.config['router'].get('device_detail_url', '')
         
         self.monitor_duration = self.config['monitor']['duration']
-        self.monitor_interval = self.config['monitor']['interval']
+        self.collect_interval = self.config['monitor'].get('collect_interval', 10)
+        self.aom_interval = self.config['monitor'].get('aom_interval', 60)
         self.data_file = self.config['monitor']['data_file']
         self.report_file = self.config['monitor']['report_file']
         
@@ -159,19 +160,24 @@ class RouterMonitor:
             }
             
             logger.debug(f"登录请求 URL: {login_url}")
-            logger.debug(f"登录请求参数: {login_data}")
-            logger.debug(f"请求头: {dict(self.session.headers)}")
+            logger.debug(f"登录用户名: {self.username}")
             
             response = self.session.post(login_url, data=login_data)
             
             logger.debug(f"登录响应状态码: {response.status_code}")
+            logger.debug(f"登录响应长度: {len(response.text)} 字符")
+            logger.debug(f"登录响应内容预览: {response.text[:200] if len(response.text) > 200 else response.text}")
             logger.debug(f"登录响应 Cookies: {dict(self.session.cookies)}")
             
             if response.status_code == 200:
-                logger.info("路由器登录成功")
-                return True
+                if 'sysauth' in self.session.cookies:
+                    logger.info("路由器登录成功")
+                    return True
+                else:
+                    logger.error("登录成功但未获取到有效Cookie，可能用户名或密码错误")
+                    return False
             else:
-                logger.error(f"路由器登录失败: {response.status_code}")
+                logger.error(f"路由器登录失败: HTTP {response.status_code}")
                 return False
         except Exception as e:
             logger.error(f"登录异常: {e}")
@@ -190,12 +196,23 @@ class RouterMonitor:
             
             logger.debug(f"响应状态码: {response.status_code}")
             logger.debug(f"响应长度: {len(response.text)} 字符")
+            logger.debug(f"响应内容预览: {response.text[:500] if len(response.text) > 500 else response.text}")
             
-            devices = []
-            speed_data = response.json()
+            if not response.text.strip():
+                logger.error("响应内容为空，可能登录已过期")
+                return []
+            
+            try:
+                speed_data = response.json()
+            except Exception as json_err:
+                logger.error(f"JSON解析失败: {json_err}")
+                logger.error(f"响应内容类型: {response.headers.get('Content-Type', 'unknown')}")
+                logger.error(f"完整响应内容: {response.text}")
+                return []
             
             logger.debug(f"解析到的设备数据键: {list(speed_data.keys())}")
             
+            devices = []
             device_details = {}
             if self.device_detail_url:
                 try:
@@ -203,22 +220,34 @@ class RouterMonitor:
                     detail_url = f'http://{self.router_ip}{self.device_detail_url}?_={random.random()}'
                     logger.debug(f"获取设备详情请求 URL: {detail_url}")
                     detail_response = self.session.get(detail_url)
-                    detail_data = detail_response.json()
                     
-                    skip_keys = {'tWUp', 'tWDown', 'tWlUp', 'tWlDown', 'wcount', 'wlcount', 
-                                'scount', 'wanUpTime', 'wanConnect', 'voip', 'itv'}
+                    logger.debug(f"设备详情响应状态码: {detail_response.status_code}")
+                    logger.debug(f"设备详情响应长度: {len(detail_response.text)} 字符")
                     
-                    for key, item in detail_data.items():
-                        if key in skip_keys:
-                            continue
-                        if isinstance(item, dict) and 'ip' in item:
-                            device_details[item.get('ip')] = {
-                                'name': item.get('devName', ''),
-                                'brand': item.get('brand', ''),
-                                'model': item.get('model', ''),
-                                'online_time': item.get('onlineTime', 0)
-                            }
-                    logger.debug(f"获取到 {len(device_details)} 个设备详情")
+                    if not detail_response.text.strip():
+                        logger.warning("设备详情响应内容为空")
+                    else:
+                        try:
+                            detail_data = detail_response.json()
+                        except Exception as json_err:
+                            logger.warning(f"设备详情JSON解析失败: {json_err}")
+                            logger.warning(f"设备详情响应内容: {detail_response.text[:500]}")
+                            detail_data = {}
+                        
+                        skip_keys = {'tWUp', 'tWDown', 'tWlUp', 'tWlDown', 'wcount', 'wlcount', 
+                                    'scount', 'wanUpTime', 'wanConnect', 'voip', 'itv'}
+                        
+                        for key, item in detail_data.items():
+                            if key in skip_keys:
+                                continue
+                            if isinstance(item, dict) and 'ip' in item:
+                                device_details[item.get('ip')] = {
+                                    'name': item.get('devName', ''),
+                                    'brand': item.get('brand', ''),
+                                    'model': item.get('model', ''),
+                                    'online_time': item.get('onlineTime', 0)
+                                }
+                        logger.debug(f"获取到 {len(device_details)} 个设备详情")
                 except Exception as e:
                     logger.warning(f"获取设备详情失败: {e}")
             
@@ -327,17 +356,19 @@ class RouterMonitor:
         if self.aom_reporter.push_metrics(metrics):
             logger.info(f"已上报 {len(metrics)} 个指标到华为云AOM")
     
-    def monitor_devices(self, duration=None, interval=None):
+    def monitor_devices(self, duration=None, collect_interval=10, aom_interval=60):
         actual_duration = duration if duration is not None else self.monitor_duration
-        actual_interval = interval if interval is not None else self.monitor_interval
         
         start_time = time.time()
         end_time = start_time + actual_duration
+        last_aom_time = 0
         
-        logger.info(f"开始监测设备网速，持续 {actual_duration} 秒，间隔 {actual_interval} 秒")
+        logger.info(f"开始监测设备网速，持续 {actual_duration} 秒")
+        logger.info(f"采集间隔: {collect_interval} 秒, AOM上报间隔: {aom_interval} 秒")
         
         while time.time() < end_time:
             try:
+                current_time = time.time()
                 timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
                 
                 devices = self.get_connected_devices()
@@ -361,15 +392,18 @@ class RouterMonitor:
                     down_speed_kb = device['down_speed'] / 1024
                     logger.info(f"[{timestamp}] {device['name']} ({device['ip']}): 上传 {up_speed_kb:.2f} KB/s, 下载 {down_speed_kb:.2f} KB/s")
                 
-                self.push_to_aom(devices)
+                if current_time - last_aom_time >= aom_interval:
+                    self.push_to_aom(devices)
+                    last_aom_time = current_time
+                    logger.info(f"AOM上报完成，下次上报将在 {aom_interval} 秒后")
                 
                 remaining = int(end_time - time.time())
                 logger.debug(f"剩余监控时间: {remaining} 秒")
                 
-                time.sleep(actual_interval)
+                time.sleep(collect_interval)
             except Exception as e:
                 logger.error(f"监测失败: {e}")
-                time.sleep(actual_interval)
+                time.sleep(collect_interval)
         
         logger.info("监控完成")
     
@@ -446,7 +480,10 @@ if __name__ == '__main__':
     if monitor.login():
         devices = monitor.get_connected_devices()
         
-        monitor.monitor_devices()
+        monitor.monitor_devices(
+            collect_interval=monitor.collect_interval,
+            aom_interval=monitor.aom_interval
+        )
         
         monitor.save_data()
         

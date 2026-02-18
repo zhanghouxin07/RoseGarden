@@ -9,7 +9,8 @@
     },
     "monitor": {
         "duration": 86400,
-        "interval": 60,
+        "collect_interval": 10,
+        "aom_interval": 60,
         "data_file": "router_monitor_data.json",
         "report_file": "bandwidth_report.png"
     },
@@ -28,7 +29,7 @@
         "enabled": true,
         "region": "ap-southeast-1",
         "project_id": "0c43877ca980260b2f5cc00fbe05a420",
-        "ak": "HPUA3IUKFQANGOCRSXHT",
-        "sk": "jle2harDRx4Mw5KQh7fvO4fiCjQoky48fS094GNV"
+        "ak": "**",
+        "sk": "**"
     }
 }
