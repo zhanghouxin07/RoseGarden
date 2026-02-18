@@ -5,120 +5,15 @@ import random
 import pandas as pd
 import matplotlib.pyplot as plt
 import logging
+import os
 from datetime import datetime
-from huaweicloudsdkcore.auth.credentials import BasicCredentials
-from huaweicloudsdkcore.http.http_config import HttpConfig
-from huaweicloudsdkaom.v2.region.aom_region import AomRegion
-from huaweicloudsdkaom.v2 import AomClient, AddMetricDataRequest, MetricDataItem, MetricItemInfo, Dimension2, ValueData
+from aom_reporter import AOMReporter
 
-logging.basicConfig(
-    level=logging.DEBUG,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S'
-)
 logger = logging.getLogger(__name__)
-
-class AOMReporter:
-    def __init__(self, config):
-        self.enabled = config.get('enabled', False)
-        self.region = config.get('region', 'ap-southeast-1')
-        self.project_id = config.get('project_id', '')
-        self.ak = config.get('ak', '')
-        self.sk = config.get('sk', '')
-        
-        logger.debug(f"AOM Reporter 初始化: enabled={self.enabled}, region={self.region}, project_id={self.project_id}")
-        
-        if self.enabled:
-            self._init_client()
-    
-    def _init_client(self):
-        config = HttpConfig.get_default_config()
-        config.ignore_ssl_verification = True
-        
-        credentials = BasicCredentials(self.ak, self.sk, self.project_id)
-        
-        region = AomRegion.value_of(self.region)
-        
-        logger.debug(f"AOM 客户端初始化: region={region}")
-        
-        self.client = AomClient.new_builder() \
-            .with_http_config(config) \
-            .with_credentials(credentials) \
-            .with_region(region) \
-            .build()
-    
-    def push_metrics(self, metrics):
-        if not self.enabled:
-            return False
-        
-        try:
-            collect_time = int(time.time() * 1000)
-            
-            logger.debug(f"AOM上报时间戳: {collect_time}")
-            logger.debug(f"AOM上报指标数量: {len(metrics)}")
-            
-            metric_data_items = []
-            for metric in metrics:
-                name = metric['name']
-                value = metric['value']
-                labels = metric.get('labels', {})
-                
-                dimensions = []
-                for key, val in labels.items():
-                    dim_name = str(key)[:32] if len(str(key)) > 32 else str(key)
-                    dim_value = str(val)[:64] if len(str(val)) > 64 else str(val)
-                    if dim_name and dim_value:
-                        dimensions.append(Dimension2(
-                            name=dim_name,
-                            value=dim_value
-                        ))
-                
-                if not dimensions:
-                    dimensions = [Dimension2(name='default', value='router')]
-                
-                metric_value = int(value) if isinstance(value, int) else float(value) if isinstance(value, (int, float)) else 0
-                
-                metric_item = MetricDataItem(
-                    collect_time=collect_time,
-                    metric=MetricItemInfo(
-                        namespace='RoseGarden.Router',
-                        dimensions=dimensions
-                    ),
-                    values=[ValueData(
-                        metric_name=name,
-                        type='int',
-                        unit='Bytes/s',
-                        value=metric_value
-                    )]
-                )
-                
-                metric_data_items.append(metric_item)
-                
-                logger.debug(f"指标: {name}={value}, 维度: {labels}")
-            
-            request = AddMetricDataRequest(body=metric_data_items)
-            
-            logger.debug(f"发送AOM请求: namespace=RoseGarden.Router, 指标数={len(metric_data_items)}")
-            
-            response = self.client.add_metric_data(request)
-            
-            logger.debug(f"AOM响应状态码: {response.status_code}")
-            logger.debug(f"AOM响应体: {response}")
-            
-            if response.status_code in [200, 201, 202, 204]:
-                logger.info(f"AOM上报成功: {len(metrics)} 个指标")
-                return True
-            else:
-                logger.error(f"AOM上报失败: {response.status_code}")
-                return False
-                
-        except Exception as e:
-            logger.error(f"AOM上报异常: {e}")
-            return False
 
 
 class RouterMonitor:
-    def __init__(self, config_file='config.json'):
+    def __init__(self, config_file='config/config.json'):
         with open(config_file, 'r', encoding='utf-8') as f:
             self.config = json.load(f)
         
@@ -131,8 +26,8 @@ class RouterMonitor:
         self.monitor_duration = self.config['monitor']['duration']
         self.collect_interval = self.config['monitor'].get('collect_interval', 10)
         self.aom_interval = self.config['monitor'].get('aom_interval', 60)
-        self.data_file = self.config['monitor']['data_file']
-        self.report_file = self.config['monitor']['report_file']
+        self.data_file = os.path.join('data', self.config['monitor']['data_file'])
+        self.report_file = os.path.join('output', self.config['monitor']['report_file'])
         
         self.session = requests.Session()
         self.session.headers.update({
@@ -313,15 +208,17 @@ class RouterMonitor:
         if self.aom_reporter.push_metrics(metrics):
             logger.info(f"已上报 {len(metrics)} 个指标到华为云AOM")
     
-    def monitor_devices(self, duration=None, collect_interval=10, aom_interval=60):
+    def monitor_devices(self, duration=None, collect_interval=None, aom_interval=None):
         actual_duration = duration if duration is not None else self.monitor_duration
+        actual_collect_interval = collect_interval if collect_interval is not None else self.collect_interval
+        actual_aom_interval = aom_interval if aom_interval is not None else self.aom_interval
         
         start_time = time.time()
         end_time = start_time + actual_duration
         last_aom_time = 0
         
         logger.info(f"开始监测设备网速，持续 {actual_duration} 秒")
-        logger.info(f"采集间隔: {collect_interval} 秒, AOM上报间隔: {aom_interval} 秒")
+        logger.info(f"采集间隔: {actual_collect_interval} 秒, AOM上报间隔: {actual_aom_interval} 秒")
         
         while time.time() < end_time:
             try:
@@ -349,23 +246,24 @@ class RouterMonitor:
                     down_speed_kb = device['down_speed'] / 1024
                     logger.info(f"[{timestamp}] {device['name']} ({device['ip']}): 上传 {up_speed_kb:.2f} KB/s, 下载 {down_speed_kb:.2f} KB/s")
                 
-                if current_time - last_aom_time >= aom_interval:
+                if current_time - last_aom_time >= actual_aom_interval:
                     self.push_to_aom(devices)
                     last_aom_time = current_time
-                    logger.info(f"AOM上报完成，下次上报将在 {aom_interval} 秒后")
+                    logger.info(f"AOM上报完成，下次上报将在 {actual_aom_interval} 秒后")
                 
                 remaining = int(end_time - time.time())
                 logger.debug(f"剩余监控时间: {remaining} 秒")
                 
-                time.sleep(collect_interval)
+                time.sleep(actual_collect_interval)
             except Exception as e:
                 logger.error(f"监测失败: {e}")
-                time.sleep(collect_interval)
+                time.sleep(actual_collect_interval)
         
         logger.info("监控完成")
     
     def save_data(self, filename=None):
         actual_filename = filename if filename is not None else self.data_file
+        os.makedirs(os.path.dirname(actual_filename), exist_ok=True)
         with open(actual_filename, 'w', encoding='utf-8') as f:
             json.dump(self.data_log, f, ensure_ascii=False, indent=2)
         logger.info(f"数据已保存到 {actual_filename}")
@@ -413,6 +311,7 @@ class RouterMonitor:
             plt.grid(True)
             
             plt.tight_layout()
+            os.makedirs(os.path.dirname(self.report_file), exist_ok=True)
             plt.savefig(self.report_file)
             logger.info(f"带宽报告已生成: {self.report_file}")
             
@@ -428,24 +327,3 @@ class RouterMonitor:
                 
         except Exception as e:
             logger.error(f"生成报告失败: {e}")
-
-if __name__ == '__main__':
-    logger.info("启动路由器监控程序")
-    
-    monitor = RouterMonitor()
-    
-    if monitor.login():
-        devices = monitor.get_connected_devices()
-        
-        monitor.monitor_devices(
-            collect_interval=monitor.collect_interval,
-            aom_interval=monitor.aom_interval
-        )
-        
-        monitor.save_data()
-        
-        monitor.generate_report()
-    else:
-        logger.error("登录失败，请检查用户名和密码")
-    
-    logger.info("程序结束")
