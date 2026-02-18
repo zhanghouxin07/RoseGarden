@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-# 测试脚本，用于验证路由器监测工具的基本功能
-
 import json
 import sys
+import os
 
-# 测试配置文件读取
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 try:
-    with open('config.json', 'r', encoding='utf-8') as f:
+    with open('../config/config.json', 'r', encoding='utf-8') as f:
         config = json.load(f)
     print("✓ 配置文件读取成功")
     print(f"  路由器 IP: {config['router']['ip']}")
@@ -31,11 +31,10 @@ except ImportError as e:
 
 # 测试路由器监测类
 try:
-    from router_monitor import RouterMonitor
+    from src.router_monitor import RouterMonitor
     print("✓ 路由器监测类导入成功")
     
-    # 创建监测实例（不实际登录）
-    monitor = RouterMonitor()
+    monitor = RouterMonitor(config_file='../config/config.json')
     print("✓ 路由器监测实例创建成功")
     
 except Exception as e:
@@ -43,4 +42,4 @@ except Exception as e:
     sys.exit(1)
 
 print("\n所有测试通过！")
-print("请根据实际情况修改 config.json 文件中的配置信息，然后运行 'python router_monitor.py' 开始监测。")
+print("请根据实际情况修改 config/config.json 文件中的配置信息，然后运行 'py src/router_monitor.py' 开始监测。")
