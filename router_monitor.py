@@ -126,16 +126,13 @@ class RouterMonitor:
         self.username = self.config['router']['username']
         self.password = self.config['router']['password']
         self.login_url = self.config['router']['login_url']
-        self.devices_url = self.config['router']['devices_url']
-        self.device_detail_url = self.config['router'].get('device_detail_url', '')
+        self.allinfo_url = self.config['router'].get('allinfo_url', '/cgi-bin/luci/admin/allInfo')
         
         self.monitor_duration = self.config['monitor']['duration']
         self.collect_interval = self.config['monitor'].get('collect_interval', 10)
         self.aom_interval = self.config['monitor'].get('aom_interval', 60)
         self.data_file = self.config['monitor']['data_file']
         self.report_file = self.config['monitor']['report_file']
-        
-        self.devices_parser = self.config['parsers']['devices']
         
         self.session = requests.Session()
         self.session.headers.update({
@@ -187,12 +184,12 @@ class RouterMonitor:
         try:
             random_param = random.random()
             
-            self.session.headers['Referer'] = f'http://{self.router_ip}/cgi-bin/luci/admin/device/pc?ip=192.168.1.1'
-            devices_url = f'http://{self.router_ip}{self.devices_url}?type=0&_={random_param}'
+            self.session.headers['Referer'] = f'http://{self.router_ip}/cgi-bin/luci/admin/home'
+            allinfo_url = f'http://{self.router_ip}{self.allinfo_url}?_={random_param}'
             
-            logger.debug(f"获取设备网速请求 URL: {devices_url}")
+            logger.debug(f"获取设备信息请求 URL: {allinfo_url}")
             
-            response = self.session.get(devices_url)
+            response = self.session.get(allinfo_url)
             
             logger.debug(f"响应状态码: {response.status_code}")
             logger.debug(f"响应长度: {len(response.text)} 字符")
@@ -203,74 +200,34 @@ class RouterMonitor:
                 return []
             
             try:
-                speed_data = response.json()
+                data = response.json()
             except Exception as json_err:
                 logger.error(f"JSON解析失败: {json_err}")
                 logger.error(f"响应内容类型: {response.headers.get('Content-Type', 'unknown')}")
                 logger.error(f"完整响应内容: {response.text}")
                 return []
             
-            logger.debug(f"解析到的设备数据键: {list(speed_data.keys())}")
+            logger.debug(f"解析到的数据键: {list(data.keys())}")
             
             devices = []
-            device_details = {}
-            if self.device_detail_url:
-                try:
-                    self.session.headers['Referer'] = f'http://{self.router_ip}/cgi-bin/luci/admin/home'
-                    detail_url = f'http://{self.router_ip}{self.device_detail_url}?_={random.random()}'
-                    logger.debug(f"获取设备详情请求 URL: {detail_url}")
-                    detail_response = self.session.get(detail_url)
-                    
-                    logger.debug(f"设备详情响应状态码: {detail_response.status_code}")
-                    logger.debug(f"设备详情响应长度: {len(detail_response.text)} 字符")
-                    
-                    if not detail_response.text.strip():
-                        logger.warning("设备详情响应内容为空")
-                    else:
-                        try:
-                            detail_data = detail_response.json()
-                        except Exception as json_err:
-                            logger.warning(f"设备详情JSON解析失败: {json_err}")
-                            logger.warning(f"设备详情响应内容: {detail_response.text[:500]}")
-                            detail_data = {}
-                        
-                        skip_keys = {'tWUp', 'tWDown', 'tWlUp', 'tWlDown', 'wcount', 'wlcount', 
-                                    'scount', 'wanUpTime', 'wanConnect', 'voip', 'itv'}
-                        
-                        for key, item in detail_data.items():
-                            if key in skip_keys:
-                                continue
-                            if isinstance(item, dict) and 'ip' in item:
-                                device_details[item.get('ip')] = {
-                                    'name': item.get('devName', ''),
-                                    'brand': item.get('brand', ''),
-                                    'model': item.get('model', ''),
-                                    'online_time': item.get('onlineTime', 0)
-                                }
-                        logger.debug(f"获取到 {len(device_details)} 个设备详情")
-                except Exception as e:
-                    logger.warning(f"获取设备详情失败: {e}")
+            skip_keys = {'tWUp', 'tWDown', 'tWlUp', 'tWlDown', 'wcount', 'wlcount', 
+                        'scount', 'wanUpTime', 'wanConnect', 'voip', 'itv'}
             
-            skip_keys = {'count', 'curip'}
-            
-            for key, item in speed_data.items():
+            for key, item in data.items():
                 if key in skip_keys:
                     continue
                 if isinstance(item, dict) and 'ip' in item:
                     try:
-                        ip = item.get('ip', 'N/A')
-                        detail = device_details.get(ip, {})
-                        
                         device_info = {
                             'id': key,
-                            'ip': ip,
+                            'ip': item.get('ip', 'N/A'),
                             'mac': item.get('mac', 'N/A'),
                             'type': item.get('type', 'N/A'),
-                            'name': detail.get('name') or item.get('devName', 'N/A'),
-                            'brand': detail.get('brand', 'N/A'),
-                            'model': detail.get('model') or item.get('system', 'N/A'),
+                            'name': item.get('devName', 'N/A'),
+                            'brand': item.get('brand', 'N/A'),
+                            'model': item.get('model', 'N/A'),
                             'system': item.get('system', 'N/A'),
-                            'online_time': detail.get('online_time', 0),
+                            'online_time': item.get('onlineTime', 0),
                             'up_speed': item.get('upSpeed', 0),
                             'down_speed': item.get('downSpeed', 0),
                             'ipv6': item.get('ipv6', ''),
@@ -280,7 +237,7 @@ class RouterMonitor:
                         devices.append(device_info)
                         
                         if device_info['up_speed'] > 0 or device_info['down_speed'] > 0:
-                            logger.debug(f"设备 {key} ({ip}) 有网速活动: 上传={device_info['up_speed']}, 下载={device_info['down_speed']}")
+                            logger.debug(f"设备 {key} ({device_info['ip']}) 有网速活动: 上传={device_info['up_speed']}, 下载={device_info['down_speed']}")
                     except Exception as e:
                         logger.error(f"解析设备信息失败: {e}")
                         continue
