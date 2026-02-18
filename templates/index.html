@@ -1,0 +1,708 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>天翼网关设备监控</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+        
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        }
+        
+        .header .subtitle {
+            opacity: 0.9;
+            font-size: 1rem;
+        }
+        
+        .status-bar {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+        
+        .status-card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease;
+        }
+        
+        .status-card:hover {
+            transform: translateY(-5px);
+        }
+        
+        .status-card .icon {
+            font-size: 2rem;
+            margin-bottom: 10px;
+        }
+        
+        .status-card .value {
+            font-size: 1.8rem;
+            font-weight: bold;
+            color: #333;
+        }
+        
+        .status-card .label {
+            color: #666;
+            font-size: 0.9rem;
+            margin-top: 5px;
+        }
+        
+        .status-card.connected .value {
+            color: #10b981;
+        }
+        
+        .status-card.disconnected .value {
+            color: #ef4444;
+        }
+        
+        .controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+        
+        .filter-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        
+        .filter-btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 20px;
+            background: white;
+            color: #666;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 0.9rem;
+        }
+        
+        .filter-btn:hover {
+            background: #f0f0f0;
+        }
+        
+        .filter-btn.active {
+            background: #667eea;
+            color: white;
+        }
+        
+        .refresh-btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            background: white;
+            color: #667eea;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .refresh-btn:hover {
+            background: #f8f8f8;
+            transform: scale(1.05);
+        }
+        
+        .refresh-btn.loading {
+            opacity: 0.7;
+            cursor: not-allowed;
+        }
+        
+        .refresh-btn .spinner {
+            width: 16px;
+            height: 16px;
+            border: 2px solid #667eea;
+            border-top-color: transparent;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .devices-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 20px;
+        }
+        
+        .device-card {
+            background: white;
+            border-radius: 16px;
+            padding: 20px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .device-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+        }
+        
+        .device-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+        }
+        
+        .device-card.type-phone::before {
+            background: linear-gradient(90deg, #10b981, #34d399);
+        }
+        
+        .device-card.type-pc::before {
+            background: linear-gradient(90deg, #3b82f6, #60a5fa);
+        }
+        
+        .device-card.type-pad::before {
+            background: linear-gradient(90deg, #f59e0b, #fbbf24);
+        }
+        
+        .device-card.type-router::before {
+            background: linear-gradient(90deg, #8b5cf6, #a78bfa);
+        }
+        
+        .device-card.type-tv::before {
+            background: linear-gradient(90deg, #ef4444, #f87171);
+        }
+        
+        .device-card.type-smart::before {
+            background: linear-gradient(90deg, #06b6d4, #22d3ee);
+        }
+        
+        .device-card.type-unknown::before {
+            background: linear-gradient(90deg, #6b7280, #9ca3af);
+        }
+        
+        .device-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 15px;
+        }
+        
+        .device-icon {
+            font-size: 2.5rem;
+        }
+        
+        .device-type-badge {
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 500;
+            text-transform: uppercase;
+        }
+        
+        .badge-phone { background: #d1fae5; color: #065f46; }
+        .badge-pc { background: #dbeafe; color: #1e40af; }
+        .badge-pad { background: #fef3c7; color: #92400e; }
+        .badge-router { background: #ede9fe; color: #5b21b6; }
+        .badge-tv { background: #fee2e2; color: #991b1b; }
+        .badge-smart { background: #cffafe; color: #155e75; }
+        .badge-unknown { background: #e5e7eb; color: #374151; }
+        
+        .device-name {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #1f2937;
+            margin-bottom: 5px;
+            word-break: break-all;
+        }
+        
+        .device-brand {
+            font-size: 0.85rem;
+            color: #6b7280;
+        }
+        
+        .device-info {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid #e5e7eb;
+        }
+        
+        .info-item {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .info-label {
+            font-size: 0.75rem;
+            color: #9ca3af;
+            text-transform: uppercase;
+        }
+        
+        .info-value {
+            font-size: 0.9rem;
+            color: #374151;
+            font-weight: 500;
+        }
+        
+        .speed-indicator {
+            display: flex;
+            gap: 15px;
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid #e5e7eb;
+        }
+        
+        .speed-item {
+            flex: 1;
+            text-align: center;
+            padding: 10px;
+            border-radius: 8px;
+            background: #f9fafb;
+        }
+        
+        .speed-item.upload {
+            color: #10b981;
+        }
+        
+        .speed-item.download {
+            color: #3b82f6;
+        }
+        
+        .speed-label {
+            font-size: 0.75rem;
+            opacity: 0.8;
+        }
+        
+        .speed-value {
+            font-size: 1rem;
+            font-weight: 600;
+            margin-top: 4px;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            background: white;
+            border-radius: 16px;
+            color: #6b7280;
+        }
+        
+        .empty-state .icon {
+            font-size: 4rem;
+            margin-bottom: 20px;
+        }
+        
+        .error-message {
+            background: #fee2e2;
+            color: #991b1b;
+            padding: 15px 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: none;
+        }
+        
+        .last-update {
+            text-align: center;
+            color: white;
+            opacity: 0.8;
+            margin-top: 20px;
+            font-size: 0.9rem;
+        }
+        
+        .monitor-status {
+            background: rgba(255,255,255,0.95);
+            border-radius: 12px;
+            padding: 15px 20px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        
+        .monitor-status .status-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .monitor-status .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #6b7280;
+        }
+        
+        .monitor-status .status-dot.running {
+            background: #10b981;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .monitor-status .status-text {
+            font-size: 0.9rem;
+            color: #374151;
+        }
+        
+        .monitor-status .status-value {
+            font-weight: 600;
+            color: #1f2937;
+        }
+        
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 1.8rem;
+            }
+            
+            .devices-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .status-bar {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🏠 天翼网关设备监控</h1>
+            <p class="subtitle">实时查看连接到您网络的所有设备</p>
+        </div>
+        
+        <div class="status-bar" id="statusBar">
+            <div class="status-card">
+                <div class="icon">📡</div>
+                <div class="value" id="wanStatus">--</div>
+                <div class="label">WAN 状态</div>
+            </div>
+            <div class="status-card">
+                <div class="icon">⏱️</div>
+                <div class="value" id="wanUptime">--</div>
+                <div class="label">在线时长</div>
+            </div>
+            <div class="status-card">
+                <div class="icon">📱</div>
+                <div class="value" id="deviceCount">--</div>
+                <div class="label">在线设备</div>
+            </div>
+            <div class="status-card">
+                <div class="icon">⬆️</div>
+                <div class="value" id="totalUpSpeed">--</div>
+                <div class="label">总上传</div>
+            </div>
+            <div class="status-card">
+                <div class="icon">⬇️</div>
+                <div class="value" id="totalDownSpeed">--</div>
+                <div class="label">总下载</div>
+            </div>
+        </div>
+        
+        <div class="monitor-status" id="monitorStatus">
+            <div class="status-item">
+                <div class="status-dot" id="monitorDot"></div>
+                <span class="status-text">后台监控: <span class="status-value" id="monitorRunning">检测中...</span></span>
+            </div>
+            <div class="status-item">
+                <span class="status-text">AOM上报: <span class="status-value" id="aomEnabled">--</span></span>
+            </div>
+            <div class="status-item">
+                <span class="status-text">上报次数: <span class="status-value" id="reportCount">--</span></span>
+            </div>
+            <div class="status-item">
+                <span class="status-text">上次上报: <span class="status-value" id="lastReport">--</span></span>
+            </div>
+            <div class="status-item">
+                <span class="status-text">采集间隔: <span class="status-value" id="collectInterval">--</span></span>
+            </div>
+        </div>
+        
+        <div class="controls">
+            <div class="filter-group">
+                <button class="filter-btn active" data-filter="all">全部</button>
+                <button class="filter-btn" data-filter="phone">📱 手机</button>
+                <button class="filter-btn" data-filter="pc">💻 电脑</button>
+                <button class="filter-btn" data-filter="pad">📲 平板</button>
+                <button class="filter-btn" data-filter="router">🔌 路由器</button>
+                <button class="filter-btn" data-filter="tv">📺 电视</button>
+                <button class="filter-btn" data-filter="smart">🏠 智能设备</button>
+            </div>
+            <button class="refresh-btn" id="refreshBtn" onclick="refreshData()">
+                <span>🔄</span>
+                <span>刷新缓存</span>
+            </button>
+        </div>
+        
+        <div class="error-message" id="errorMessage"></div>
+        
+        <div class="devices-grid" id="devicesGrid">
+            <div class="empty-state">
+                <div class="icon">📡</div>
+                <p>正在加载设备信息...</p>
+            </div>
+        </div>
+        
+        <div class="last-update" id="lastUpdate">
+            上次更新: --
+        </div>
+    </div>
+    
+    <script>
+        let allDevices = [];
+        let currentFilter = 'all';
+        
+        function getDeviceTypeInfo(device) {
+            const brand = (device.brand || '').toLowerCase();
+            const model = (device.model || '').toLowerCase();
+            const name = (device.name || '').toLowerCase();
+            const type = device.type || '';
+            
+            if (model.includes('路由') || model.includes('router') || model.includes('tc') || model.includes('ax')) {
+                return { type: 'router', icon: '🔌', label: '路由器' };
+            }
+            if (model.includes('电视') || model.includes('tv') || model.includes('bravia')) {
+                return { type: 'tv', icon: '📺', label: '电视' };
+            }
+            if (model.includes('扫地') || model.includes('机器人') || model.includes('vacuum') || name.includes('camera') || name.includes('cam')) {
+                return { type: 'smart', icon: '🏠', label: '智能设备' };
+            }
+            if (model.includes('ipad') || model.includes('平板') || brand.includes('苹果') && type === 'pc') {
+                return { type: 'pad', icon: '📲', label: '平板' };
+            }
+            if (model.includes('matebook') || model.includes('笔记本') || model.includes('laptop')) {
+                return { type: 'pc', icon: '💻', label: '笔记本' };
+            }
+            if (model.includes('iphone') || model.includes('mate') || model.includes('find') || model.includes('magic') || type === 'phone') {
+                return { type: 'phone', icon: '📱', label: '手机' };
+            }
+            if (type === 'pc') {
+                return { type: 'pc', icon: '💻', label: '电脑' };
+            }
+            
+            return { type: 'unknown', icon: '❓', label: '未知' };
+        }
+        
+        function renderDevices(devices) {
+            const grid = document.getElementById('devicesGrid');
+            
+            if (devices.length === 0) {
+                grid.innerHTML = `
+                    <div class="empty-state">
+                        <div class="icon">📡</div>
+                        <p>没有找到匹配的设备</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            grid.innerHTML = devices.map(device => {
+                const typeInfo = getDeviceTypeInfo(device);
+                const displayName = device.name || device.model || device.brand || '未知设备';
+                
+                return `
+                    <div class="device-card type-${typeInfo.type}">
+                        <div class="device-header">
+                            <div class="device-icon">${typeInfo.icon}</div>
+                            <span class="device-type-badge badge-${typeInfo.type}">${typeInfo.label}</span>
+                        </div>
+                        <div class="device-name">${displayName}</div>
+                        <div class="device-brand">${device.brand || ''} ${device.model || ''}</div>
+                        
+                        <div class="device-info">
+                            <div class="info-item">
+                                <span class="info-label">IP 地址</span>
+                                <span class="info-value">${device.ip || '--'}</span>
+                            </div>
+                            <div class="info-item">
+                                <span class="info-label">在线时长</span>
+                                <span class="info-value">${device.online_time_formatted || '--'}</span>
+                            </div>
+                        </div>
+                        
+                        <div class="speed-indicator">
+                            <div class="speed-item upload">
+                                <div class="speed-label">⬆️ 上传</div>
+                                <div class="speed-value">${device.up_speed_formatted || '0 B/s'}</div>
+                            </div>
+                            <div class="speed-item download">
+                                <div class="speed-label">⬇️ 下载</div>
+                                <div class="speed-value">${device.down_speed_formatted || '0 B/s'}</div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+        
+        function filterDevices() {
+            if (currentFilter === 'all') {
+                renderDevices(allDevices);
+            } else {
+                const filtered = allDevices.filter(device => {
+                    const typeInfo = getDeviceTypeInfo(device);
+                    return typeInfo.type === currentFilter;
+                });
+                renderDevices(filtered);
+            }
+        }
+        
+        async function fetchNetworkStatus() {
+            try {
+                const response = await fetch('/api/network-status');
+                const data = await response.json();
+                
+                if (data.error) {
+                    console.error('Network status error:', data.error);
+                    return;
+                }
+                
+                const wanStatusEl = document.getElementById('wanStatus');
+                const wanCard = wanStatusEl.closest('.status-card');
+                
+                if (data.wan_connect === 'CONNECTED') {
+                    wanStatusEl.textContent = '已连接';
+                    wanCard.classList.add('connected');
+                    wanCard.classList.remove('disconnected');
+                } else {
+                    wanStatusEl.textContent = '未连接';
+                    wanCard.classList.add('disconnected');
+                    wanCard.classList.remove('connected');
+                }
+                
+                document.getElementById('wanUptime').textContent = data.wan_up_time || '--';
+                document.getElementById('totalUpSpeed').textContent = data.total_up_speed || '--';
+                document.getElementById('totalDownSpeed').textContent = data.total_down_speed || '--';
+                
+            } catch (error) {
+                console.error('Failed to fetch network status:', error);
+            }
+        }
+        
+        async function fetchMonitorStatus() {
+            try {
+                const response = await fetch('/api/monitor-status');
+                const data = await response.json();
+                
+                const dot = document.getElementById('monitorDot');
+                const running = document.getElementById('monitorRunning');
+                const aomEnabled = document.getElementById('aomEnabled');
+                const reportCount = document.getElementById('reportCount');
+                const lastReport = document.getElementById('lastReport');
+                
+                aomEnabled.textContent = data.aom_enabled ? '已启用' : '未启用';
+                
+                if (data.background_monitor_running) {
+                    dot.classList.add('running');
+                    running.textContent = '运行中';
+                    reportCount.textContent = data.report_count || 0;
+                    lastReport.textContent = data.last_report_time || '--';
+                    document.getElementById('collectInterval').textContent = (data.collect_interval || 10) + '秒';
+                } else {
+                    dot.classList.remove('running');
+                    running.textContent = data.message || '未启动';
+                    reportCount.textContent = '--';
+                    lastReport.textContent = '--';
+                    document.getElementById('collectInterval').textContent = '--';
+                }
+                
+            } catch (error) {
+                console.error('Failed to fetch monitor status:', error);
+            }
+        }
+        
+        async function fetchDevices() {
+            const btn = document.getElementById('refreshBtn');
+            const errorEl = document.getElementById('errorMessage');
+            
+            btn.classList.add('loading');
+            btn.innerHTML = '<div class="spinner"></div><span>加载中...</span>';
+            errorEl.style.display = 'none';
+            
+            try {
+                const response = await fetch('/api/devices');
+                const data = await response.json();
+                
+                if (data.error) {
+                    errorEl.textContent = '错误: ' + data.error;
+                    errorEl.style.display = 'block';
+                    return;
+                }
+                
+                allDevices = data.devices || [];
+                document.getElementById('deviceCount').textContent = data.total || 0;
+                document.getElementById('lastUpdate').textContent = '上次更新: ' + data.timestamp;
+                
+                filterDevices();
+                
+            } catch (error) {
+                errorEl.textContent = '获取设备信息失败: ' + error.message;
+                errorEl.style.display = 'block';
+            } finally {
+                btn.classList.remove('loading');
+                btn.innerHTML = '<span>🔄</span><span>刷新缓存</span>';
+            }
+        }
+        
+        async function refreshData() {
+            await Promise.all([fetchDevices(), fetchNetworkStatus(), fetchMonitorStatus()]);
+        }
+        
+        document.querySelectorAll('.filter-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+                this.classList.add('active');
+                currentFilter = this.dataset.filter;
+                filterDevices();
+            });
+        });
+        
+        refreshData();
+        
+        setInterval(refreshData, 30000);
+    </script>
+</body>
+</html>
