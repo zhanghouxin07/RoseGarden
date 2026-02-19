@@ -1,6 +1,7 @@
 import threading
 import time
 import logging
+import random
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
@@ -50,33 +51,71 @@ class BackgroundMonitor(threading.Thread):
             logger.warning("后台监控登录失败，跳过本次采集")
             return
         
-        devices = self.monitor.get_connected_devices()
-        
-        import random
-        random_param = random.random()
-        allinfo_url = f'http://{self.monitor.router_ip}{self.monitor.allinfo_url}?_={random_param}'
-        self.monitor.session.headers['Referer'] = f'http://{self.monitor.router_ip}/cgi-bin/luci/admin/home'
-        
-        response = self.monitor.session.get(allinfo_url)
-        data = response.json()
-        
-        network_status = {
-            'wan_connect': data.get('wanConnect', 'UNKNOWN'),
-            'wan_up_time': data.get('wanUpTime', 0),
-            'wired_count': data.get('wcount', 0),
-            'wireless_count': data.get('wlcount', 0),
-            'total_up_speed': data.get('tWUp', 0),
-            'total_down_speed': data.get('tWDown', 0),
-            'voip': data.get('voip', False),
-            'itv': data.get('itv', False)
-        }
-        
-        with self._lock:
-            self._cached_devices = devices
-            self._cached_network_status = network_status
-            self._last_collect_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        
-        logger.debug(f"数据采集完成，设备数: {len(devices)}")
+        try:
+            random_param = random.random()
+            allinfo_url = f'http://{self.monitor.router_ip}{self.monitor.allinfo_url}?_={random_param}'
+            self.monitor.session.headers['Referer'] = f'http://{self.monitor.router_ip}/cgi-bin/luci/admin/home'
+            
+            response = self.monitor.session.get(allinfo_url)
+            
+            if not response.text.strip():
+                logger.error("响应内容为空")
+                return
+            
+            data = response.json()
+            
+            skip_keys = {'tWUp', 'tWDown', 'tWlUp', 'tWlDown', 'wcount', 'wlcount', 
+                        'scount', 'wanUpTime', 'wanConnect', 'voip', 'itv'}
+            
+            devices = []
+            for key, item in data.items():
+                if key in skip_keys:
+                    continue
+                if isinstance(item, dict) and 'ip' in item:
+                    device_info = {
+                        'id': key,
+                        'ip': item.get('ip', 'N/A'),
+                        'mac': item.get('mac', 'N/A'),
+                        'type': item.get('type', 'N/A'),
+                        'name': item.get('devName', 'N/A'),
+                        'brand': item.get('brand', 'N/A'),
+                        'model': item.get('model', 'N/A'),
+                        'system': item.get('system', 'N/A'),
+                        'online_time': item.get('onlineTime', 0),
+                        'up_speed': item.get('upSpeed', 0),
+                        'down_speed': item.get('downSpeed', 0),
+                        'ipv6': item.get('ipv6', ''),
+                        'restrict': item.get('restrict', False),
+                        'black': item.get('black', False)
+                    }
+                    devices.append(device_info)
+            
+            network_status = {
+                'wan_connect': data.get('wanConnect', 'UNKNOWN'),
+                'wan_up_time': data.get('wanUpTime', 0),
+                'wired_count': data.get('wcount', 0),
+                'wireless_count': data.get('wlcount', 0),
+                'total_up_speed': data.get('tWUp', 0),
+                'total_down_speed': data.get('tWDown', 0),
+                'wireless_up_speed': data.get('tWlUp', 0),
+                'wireless_down_speed': data.get('tWlDown', 0),
+                'voip': data.get('voip', False),
+                'itv': data.get('itv', False)
+            }
+            
+            with self._lock:
+                self._cached_devices = devices
+                self._cached_network_status = network_status
+                self._last_collect_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            
+            self.monitor.devices = devices
+            
+            total_up = network_status['total_up_speed']
+            total_down = network_status['total_down_speed']
+            logger.info(f"数据采集完成，设备数: {len(devices)}, 总上传: {total_up} B/s, 总下载: {total_down} B/s")
+            
+        except Exception as e:
+            logger.error(f"数据采集异常: {e}")
     
     def _report_to_aom(self):
         with self._lock:
