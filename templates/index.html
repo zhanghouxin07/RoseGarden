@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>天翼网关设备监控</title>
     <style>
         * {
@@ -15,7 +15,7 @@
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
-            padding: 20px;
+            padding: 15px;
         }
         
         .container {
@@ -26,55 +26,55 @@
         .header {
             text-align: center;
             color: white;
-            margin-bottom: 30px;
+            margin-bottom: 20px;
         }
         
         .header h1 {
-            font-size: 2.5rem;
-            margin-bottom: 10px;
+            font-size: 1.5rem;
+            margin-bottom: 5px;
             text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
         }
         
         .header .subtitle {
             opacity: 0.9;
-            font-size: 1rem;
+            font-size: 0.85rem;
         }
         
         .status-bar {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 15px;
-            margin-bottom: 30px;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 10px;
+            margin-bottom: 15px;
         }
         
         .status-card {
             background: white;
-            border-radius: 12px;
-            padding: 20px;
+            border-radius: 10px;
+            padding: 12px 8px;
             text-align: center;
             box-shadow: 0 4px 15px rgba(0,0,0,0.1);
             transition: transform 0.3s ease;
         }
         
         .status-card:hover {
-            transform: translateY(-5px);
+            transform: translateY(-3px);
         }
         
         .status-card .icon {
-            font-size: 2rem;
-            margin-bottom: 10px;
+            font-size: 1.5rem;
+            margin-bottom: 5px;
         }
         
         .status-card .value {
-            font-size: 1.8rem;
+            font-size: 1.1rem;
             font-weight: bold;
             color: #333;
         }
         
         .status-card .label {
             color: #666;
-            font-size: 0.9rem;
-            margin-top: 5px;
+            font-size: 0.7rem;
+            margin-top: 3px;
         }
         
         .status-card.connected .value {
@@ -87,28 +87,60 @@
         
         .controls {
             display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-            flex-wrap: wrap;
-            gap: 15px;
+            flex-direction: column;
+            gap: 10px;
+            margin-bottom: 15px;
         }
         
         .filter-group {
             display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
+            gap: 6px;
+            overflow-x: auto;
+            padding-bottom: 5px;
+            -webkit-overflow-scrolling: touch;
+        }
+        
+        .filter-group::-webkit-scrollbar {
+            display: none;
         }
         
         .filter-btn {
-            padding: 8px 16px;
+            padding: 6px 12px;
             border: none;
-            border-radius: 20px;
+            border-radius: 16px;
             background: white;
             color: #666;
             cursor: pointer;
             transition: all 0.3s ease;
-            font-size: 0.9rem;
+            font-size: 0.8rem;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+        
+        .sort-group {
+            display: flex;
+            align-items: center;
+        }
+        
+        .sort-select {
+            padding: 6px 12px;
+            border: none;
+            border-radius: 8px;
+            background: white;
+            color: #666;
+            cursor: pointer;
+            font-size: 0.8rem;
+            outline: none;
+            transition: all 0.3s ease;
+            min-width: 120px;
+        }
+        
+        .sort-select:hover {
+            background: #f0f0f0;
+        }
+        
+        .sort-select:focus {
+            box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.2);
         }
         
         .filter-btn:hover {
@@ -121,23 +153,24 @@
         }
         
         .refresh-btn {
-            padding: 10px 20px;
+            padding: 10px 16px;
             border: none;
             border-radius: 8px;
             background: white;
             color: #667eea;
             cursor: pointer;
-            font-size: 1rem;
+            font-size: 0.9rem;
             font-weight: 500;
             transition: all 0.3s ease;
             display: flex;
             align-items: center;
+            justify-content: center;
             gap: 8px;
         }
         
         .refresh-btn:hover {
             background: #f8f8f8;
-            transform: scale(1.05);
+            transform: scale(1.02);
         }
         
         .refresh-btn.loading {
@@ -158,16 +191,64 @@
             to { transform: rotate(360deg); }
         }
         
+        .monitor-status {
+            background: rgba(255,255,255,0.95);
+            border-radius: 10px;
+            padding: 12px 15px;
+            margin-bottom: 15px;
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 8px 15px;
+        }
+        
+        .monitor-status .status-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .monitor-status .status-item.full-width {
+            grid-column: 1 / -1;
+        }
+        
+        .monitor-status .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #6b7280;
+            flex-shrink: 0;
+        }
+        
+        .monitor-status .status-dot.running {
+            background: #10b981;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .monitor-status .status-text {
+            font-size: 0.8rem;
+            color: #374151;
+        }
+        
+        .monitor-status .status-value {
+            font-weight: 600;
+            color: #1f2937;
+        }
+        
         .devices-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-            gap: 20px;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 12px;
         }
         
         .device-card {
             background: white;
-            border-radius: 16px;
-            padding: 20px;
+            border-radius: 12px;
+            padding: 15px;
             box-shadow: 0 4px 15px rgba(0,0,0,0.1);
             transition: all 0.3s ease;
             position: relative;
@@ -175,7 +256,7 @@
         }
         
         .device-card:hover {
-            transform: translateY(-5px);
+            transform: translateY(-3px);
             box-shadow: 0 8px 25px rgba(0,0,0,0.15);
         }
         
@@ -185,7 +266,7 @@
             top: 0;
             left: 0;
             right: 0;
-            height: 4px;
+            height: 3px;
         }
         
         .device-card.type-phone::before {
@@ -220,17 +301,17 @@
             display: flex;
             justify-content: space-between;
             align-items: flex-start;
-            margin-bottom: 15px;
+            margin-bottom: 10px;
         }
         
         .device-icon {
-            font-size: 2.5rem;
+            font-size: 2rem;
         }
         
         .device-type-badge {
-            padding: 4px 12px;
-            border-radius: 12px;
-            font-size: 0.75rem;
+            padding: 3px 10px;
+            border-radius: 10px;
+            font-size: 0.7rem;
             font-weight: 500;
             text-transform: uppercase;
         }
@@ -244,24 +325,24 @@
         .badge-unknown { background: #e5e7eb; color: #374151; }
         
         .device-name {
-            font-size: 1.1rem;
+            font-size: 1rem;
             font-weight: 600;
             color: #1f2937;
-            margin-bottom: 5px;
+            margin-bottom: 3px;
             word-break: break-all;
         }
         
         .device-brand {
-            font-size: 0.85rem;
+            font-size: 0.75rem;
             color: #6b7280;
         }
         
         .device-info {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 10px;
-            margin-top: 15px;
-            padding-top: 15px;
+            gap: 8px;
+            margin-top: 12px;
+            padding-top: 12px;
             border-top: 1px solid #e5e7eb;
         }
         
@@ -271,30 +352,30 @@
         }
         
         .info-label {
-            font-size: 0.75rem;
+            font-size: 0.7rem;
             color: #9ca3af;
             text-transform: uppercase;
         }
         
         .info-value {
-            font-size: 0.9rem;
+            font-size: 0.85rem;
             color: #374151;
             font-weight: 500;
         }
         
         .speed-indicator {
             display: flex;
-            gap: 15px;
-            margin-top: 15px;
-            padding-top: 15px;
+            gap: 10px;
+            margin-top: 12px;
+            padding-top: 12px;
             border-top: 1px solid #e5e7eb;
         }
         
         .speed-item {
             flex: 1;
             text-align: center;
-            padding: 10px;
-            border-radius: 8px;
+            padding: 8px;
+            border-radius: 6px;
             background: #f9fafb;
         }
         
@@ -307,102 +388,192 @@
         }
         
         .speed-label {
-            font-size: 0.75rem;
+            font-size: 0.7rem;
             opacity: 0.8;
         }
         
         .speed-value {
-            font-size: 1rem;
+            font-size: 0.85rem;
             font-weight: 600;
-            margin-top: 4px;
+            margin-top: 2px;
         }
         
         .empty-state {
             text-align: center;
-            padding: 60px 20px;
+            padding: 40px 20px;
             background: white;
-            border-radius: 16px;
+            border-radius: 12px;
             color: #6b7280;
         }
         
         .empty-state .icon {
-            font-size: 4rem;
-            margin-bottom: 20px;
+            font-size: 3rem;
+            margin-bottom: 15px;
         }
         
         .error-message {
             background: #fee2e2;
             color: #991b1b;
-            padding: 15px 20px;
+            padding: 12px 15px;
             border-radius: 8px;
-            margin-bottom: 20px;
+            margin-bottom: 15px;
             display: none;
+            font-size: 0.85rem;
         }
         
         .last-update {
             text-align: center;
             color: white;
             opacity: 0.8;
-            margin-top: 20px;
-            font-size: 0.9rem;
+            margin-top: 15px;
+            font-size: 0.8rem;
         }
         
-        .monitor-status {
-            background: rgba(255,255,255,0.95);
-            border-radius: 12px;
-            padding: 15px 20px;
-            margin-bottom: 20px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 10px;
-        }
-        
-        .monitor-status .status-item {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        
-        .monitor-status .status-dot {
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            background: #6b7280;
-        }
-        
-        .monitor-status .status-dot.running {
-            background: #10b981;
-            animation: pulse 2s infinite;
-        }
-        
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
-        }
-        
-        .monitor-status .status-text {
-            font-size: 0.9rem;
-            color: #374151;
-        }
-        
-        .monitor-status .status-value {
-            font-weight: 600;
-            color: #1f2937;
-        }
-        
-        @media (max-width: 768px) {
+        @media (min-width: 769px) {
+            body {
+                padding: 20px;
+            }
+            
             .header h1 {
+                font-size: 2.5rem;
+            }
+            
+            .header .subtitle {
+                font-size: 1rem;
+            }
+            
+            .status-bar {
+                gap: 15px;
+                margin-bottom: 30px;
+            }
+            
+            .status-card {
+                padding: 20px;
+            }
+            
+            .status-card .icon {
+                font-size: 2rem;
+                margin-bottom: 10px;
+            }
+            
+            .status-card .value {
                 font-size: 1.8rem;
+            }
+            
+            .status-card .label {
+                font-size: 0.9rem;
+            }
+            
+            .controls {
+                flex-direction: row;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 20px;
+            }
+            
+            .filter-group {
+                overflow-x: visible;
+                padding-bottom: 0;
+            }
+            
+            .filter-btn {
+                padding: 8px 16px;
+                font-size: 0.9rem;
+            }
+            
+            .sort-select {
+                padding: 8px 16px;
+                font-size: 0.9rem;
+                min-width: 140px;
+            }
+            
+            .monitor-status {
+                display: flex;
+                justify-content: space-between;
+                flex-wrap: wrap;
+                gap: 10px;
+                padding: 15px 20px;
+            }
+            
+            .monitor-status .status-item.full-width {
+                grid-column: auto;
+            }
+            
+            .monitor-status .status-text {
+                font-size: 0.9rem;
+            }
+            
+            .devices-grid {
+                grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+                gap: 20px;
+            }
+            
+            .device-card {
+                padding: 20px;
+            }
+            
+            .device-icon {
+                font-size: 2.5rem;
+            }
+            
+            .device-name {
+                font-size: 1.1rem;
+            }
+            
+            .device-brand {
+                font-size: 0.85rem;
+            }
+            
+            .last-update {
+                margin-top: 20px;
+                font-size: 0.9rem;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .status-bar {
+                grid-template-columns: repeat(3, 1fr);
+            }
+            
+            .status-card:nth-child(4),
+            .status-card:nth-child(5) {
+                grid-column: span 1;
+            }
+            
+            .status-card:last-child {
+                grid-column: 1 / -1;
+            }
+            
+            .status-card .value {
+                font-size: 1rem;
             }
             
             .devices-grid {
                 grid-template-columns: 1fr;
             }
             
-            .status-bar {
-                grid-template-columns: repeat(2, 1fr);
+            .device-card {
+                padding: 12px;
+            }
+            
+            .device-icon {
+                font-size: 1.8rem;
+            }
+            
+            .device-info {
+                gap: 6px;
+                margin-top: 10px;
+                padding-top: 10px;
+            }
+            
+            .speed-indicator {
+                gap: 8px;
+                margin-top: 10px;
+                padding-top: 10px;
+            }
+            
+            .speed-item {
+                padding: 6px;
             }
         }
     </style>
@@ -443,7 +614,7 @@
         </div>
         
         <div class="monitor-status" id="monitorStatus">
-            <div class="status-item">
+            <div class="status-item full-width">
                 <div class="status-dot" id="monitorDot"></div>
                 <span class="status-text">后台监控: <span class="status-value" id="monitorRunning">检测中...</span></span>
             </div>
@@ -471,6 +642,20 @@
                 <button class="filter-btn" data-filter="tv">📺 电视</button>
                 <button class="filter-btn" data-filter="smart">🏠 智能设备</button>
             </div>
+            <div class="sort-group">
+                <select class="sort-select" id="sortSelect">
+                    <option value="name-asc">设备名称 A-Z</option>
+                    <option value="name-desc">设备名称 Z-A</option>
+                    <option value="online-asc">在线时间 ↑</option>
+                    <option value="online-desc">在线时间 ↓</option>
+                    <option value="upload-asc">上传速度 ↑</option>
+                    <option value="upload-desc">上传速度 ↓</option>
+                    <option value="download-asc">下载速度 ↑</option>
+                    <option value="download-desc">下载速度 ↓</option>
+                    <option value="type-asc">设备类型 A-Z</option>
+                    <option value="type-desc">设备类型 Z-A</option>
+                </select>
+            </div>
             <button class="refresh-btn" id="refreshBtn" onclick="refreshData()">
                 <span>🔄</span>
                 <span>刷新缓存</span>
@@ -494,6 +679,7 @@
     <script>
         let allDevices = [];
         let currentFilter = 'all';
+        let currentSort = 'name-asc';
         
         function getDeviceTypeInfo(device) {
             const brand = (device.brand || '').toLowerCase();
@@ -578,16 +764,59 @@
             }).join('');
         }
         
+        function sortDevices(devices) {
+            const [field, direction] = currentSort.split('-');
+            
+            return devices.sort((a, b) => {
+                let aValue, bValue;
+                
+                switch (field) {
+                    case 'name':
+                        aValue = (a.name || a.model || a.brand || '未知设备').toLowerCase();
+                        bValue = (b.name || b.model || b.brand || '未知设备').toLowerCase();
+                        break;
+                    case 'online':
+                        aValue = a.online_time || 0;
+                        bValue = b.online_time || 0;
+                        break;
+                    case 'upload':
+                        aValue = a.up_speed || 0;
+                        bValue = b.up_speed || 0;
+                        break;
+                    case 'download':
+                        aValue = a.down_speed || 0;
+                        bValue = b.down_speed || 0;
+                        break;
+                    case 'type':
+                        aValue = getDeviceTypeInfo(a).label;
+                        bValue = getDeviceTypeInfo(b).label;
+                        break;
+                    default:
+                        return 0;
+                }
+                
+                let result = 0;
+                if (aValue < bValue) result = -1;
+                if (aValue > bValue) result = 1;
+                
+                return direction === 'desc' ? -result : result;
+            });
+        }
+        
         function filterDevices() {
+            let filteredDevices;
+            
             if (currentFilter === 'all') {
-                renderDevices(allDevices);
+                filteredDevices = [...allDevices];
             } else {
-                const filtered = allDevices.filter(device => {
+                filteredDevices = allDevices.filter(device => {
                     const typeInfo = getDeviceTypeInfo(device);
                     return typeInfo.type === currentFilter;
                 });
-                renderDevices(filtered);
             }
+            
+            const sortedDevices = sortDevices(filteredDevices);
+            renderDevices(sortedDevices);
         }
         
         async function fetchNetworkStatus() {
@@ -627,68 +856,74 @@
                 const response = await fetch('/api/monitor-status');
                 const data = await response.json();
                 
-                const dot = document.getElementById('monitorDot');
-                const running = document.getElementById('monitorRunning');
-                const aomEnabled = document.getElementById('aomEnabled');
-                const reportCount = document.getElementById('reportCount');
-                const lastReport = document.getElementById('lastReport');
-                
-                aomEnabled.textContent = data.aom_enabled ? '已启用' : '未启用';
+                const monitorDot = document.getElementById('monitorDot');
+                const monitorRunning = document.getElementById('monitorRunning');
                 
                 if (data.background_monitor_running) {
-                    dot.classList.add('running');
-                    running.textContent = '运行中';
-                    reportCount.textContent = data.report_count || 0;
-                    lastReport.textContent = data.last_report_time || '--';
-                    document.getElementById('collectInterval').textContent = (data.collect_interval || 10) + '秒';
+                    monitorDot.classList.add('running');
+                    monitorRunning.textContent = '运行中';
                 } else {
-                    dot.classList.remove('running');
-                    running.textContent = data.message || '未启动';
-                    reportCount.textContent = '--';
-                    lastReport.textContent = '--';
-                    document.getElementById('collectInterval').textContent = '--';
+                    monitorDot.classList.remove('running');
+                    monitorRunning.textContent = '已停止';
                 }
+                
+                document.getElementById('aomEnabled').textContent = data.aom_enabled ? '已启用' : '未启用';
+                document.getElementById('reportCount').textContent = data.report_count || 0;
+                document.getElementById('lastReport').textContent = data.last_report_time || '--';
+                document.getElementById('collectInterval').textContent = data.collect_interval + '秒';
                 
             } catch (error) {
                 console.error('Failed to fetch monitor status:', error);
+                document.getElementById('monitorRunning').textContent = '获取失败';
             }
         }
         
         async function fetchDevices() {
-            const btn = document.getElementById('refreshBtn');
-            const errorEl = document.getElementById('errorMessage');
-            
-            btn.classList.add('loading');
-            btn.innerHTML = '<div class="spinner"></div><span>加载中...</span>';
-            errorEl.style.display = 'none';
-            
             try {
                 const response = await fetch('/api/devices');
                 const data = await response.json();
                 
                 if (data.error) {
-                    errorEl.textContent = '错误: ' + data.error;
-                    errorEl.style.display = 'block';
+                    showError(data.error);
                     return;
                 }
                 
                 allDevices = data.devices || [];
-                document.getElementById('deviceCount').textContent = data.total || 0;
-                document.getElementById('lastUpdate').textContent = '上次更新: ' + data.timestamp;
-                
                 filterDevices();
                 
+                document.getElementById('deviceCount').textContent = allDevices.length;
+                document.getElementById('lastUpdate').textContent = '上次更新: ' + (data.timestamp || new Date().toLocaleString());
+                
             } catch (error) {
-                errorEl.textContent = '获取设备信息失败: ' + error.message;
-                errorEl.style.display = 'block';
-            } finally {
-                btn.classList.remove('loading');
-                btn.innerHTML = '<span>🔄</span><span>刷新缓存</span>';
+                console.error('Failed to fetch devices:', error);
+                showError('获取设备列表失败: ' + error.message);
             }
         }
         
+        function showError(message) {
+            const errorEl = document.getElementById('errorMessage');
+            errorEl.textContent = message;
+            errorEl.style.display = 'block';
+            setTimeout(() => {
+                errorEl.style.display = 'none';
+            }, 5000);
+        }
+        
         async function refreshData() {
-            await Promise.all([fetchDevices(), fetchNetworkStatus(), fetchMonitorStatus()]);
+            const btn = document.getElementById('refreshBtn');
+            btn.classList.add('loading');
+            btn.querySelector('span:last-child').textContent = '刷新中...';
+            
+            try {
+                await Promise.all([
+                    fetchNetworkStatus(),
+                    fetchMonitorStatus(),
+                    fetchDevices()
+                ]);
+            } finally {
+                btn.classList.remove('loading');
+                btn.querySelector('span:last-child').textContent = '刷新缓存';
+            }
         }
         
         document.querySelectorAll('.filter-btn').forEach(btn => {
@@ -698,6 +933,11 @@
                 currentFilter = this.dataset.filter;
                 filterDevices();
             });
+        });
+        
+        document.getElementById('sortSelect').addEventListener('change', function() {
+            currentSort = this.value;
+            filterDevices();
         });
         
         refreshData();
