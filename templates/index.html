@@ -304,8 +304,32 @@
             margin-bottom: 10px;
         }
         
+        .header-badges {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            align-items: flex-end;
+        }
+        
         .device-icon {
             font-size: 2rem;
+        }
+        
+        .status-badge {
+            padding: 2px 8px;
+            border-radius: 8px;
+            font-size: 0.65rem;
+            font-weight: 500;
+        }
+        
+        .status-badge.black {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+        
+        .status-badge.restrict {
+            background: #fef3c7;
+            color: #92400e;
         }
         
         .device-type-badge {
@@ -351,6 +375,10 @@
             flex-direction: column;
         }
         
+        .info-item.full-width {
+            grid-column: 1 / -1;
+        }
+        
         .info-label {
             font-size: 0.7rem;
             color: #9ca3af;
@@ -361,6 +389,18 @@
             font-size: 0.85rem;
             color: #374151;
             font-weight: 500;
+            word-break: break-all;
+        }
+        
+        .mac-address {
+            font-family: 'Courier New', monospace;
+            font-size: 0.75rem;
+        }
+        
+        .ipv6-address {
+            font-family: 'Courier New', monospace;
+            font-size: 0.7rem;
+            line-height: 1.4;
         }
         
         .speed-indicator {
@@ -566,6 +606,18 @@
                 padding-top: 10px;
             }
             
+            .info-value {
+                font-size: 0.8rem;
+            }
+            
+            .mac-address {
+                font-size: 0.7rem;
+            }
+            
+            .ipv6-address {
+                font-size: 0.65rem;
+            }
+            
             .speed-indicator {
                 gap: 8px;
                 margin-top: 10px;
@@ -728,15 +780,20 @@
             grid.innerHTML = devices.map(device => {
                 const typeInfo = getDeviceTypeInfo(device);
                 const displayName = device.name || device.model || device.brand || '未知设备';
+                const statusBadge = device.black ? '<span class="status-badge black">黑名单</span>' : 
+                                    device.restrict ? '<span class="status-badge restrict">受限</span>' : '';
                 
                 return `
                     <div class="device-card type-${typeInfo.type}">
                         <div class="device-header">
                             <div class="device-icon">${typeInfo.icon}</div>
-                            <span class="device-type-badge badge-${typeInfo.type}">${typeInfo.label}</span>
+                            <div class="header-badges">
+                                <span class="device-type-badge badge-${typeInfo.type}">${typeInfo.label}</span>
+                                ${statusBadge}
+                            </div>
                         </div>
                         <div class="device-name">${displayName}</div>
-                        <div class="device-brand">${device.brand || ''} ${device.model || ''}</div>
+                        <div class="device-brand">${device.brand || '--'} | ${device.model || '--'}</div>
                         
                         <div class="device-info">
                             <div class="info-item">
@@ -744,9 +801,23 @@
                                 <span class="info-value">${device.ip || '--'}</span>
                             </div>
                             <div class="info-item">
+                                <span class="info-label">MAC 地址</span>
+                                <span class="info-value mac-address">${device.mac || '--'}</span>
+                            </div>
+                            <div class="info-item">
                                 <span class="info-label">在线时长</span>
                                 <span class="info-value">${device.online_time_formatted || '--'}</span>
                             </div>
+                            <div class="info-item">
+                                <span class="info-label">操作系统</span>
+                                <span class="info-value">${device.system || '--'}</span>
+                            </div>
+                            ${device.ipv6 ? `
+                            <div class="info-item full-width">
+                                <span class="info-label">IPv6 地址</span>
+                                <span class="info-value ipv6-address">${device.ipv6}</span>
+                            </div>
+                            ` : ''}
                         </div>
                         
                         <div class="speed-indicator">
