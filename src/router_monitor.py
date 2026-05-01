@@ -7,10 +7,7 @@ import matplotlib.pyplot as plt
 import logging
 import os
 from datetime import datetime
-try:
-    from .aom_reporter import AOMReporter
-except ImportError:
-    from aom_reporter import AOMReporter
+from .aom_reporter import AOMReporter
 
 logger = logging.getLogger(__name__)
 

@@ -22,7 +22,7 @@ background_monitor = None
 def get_monitor():
     global monitor
     if monitor is None:
-        from src.router_monitor import RouterMonitor
+        from .router_monitor import RouterMonitor
         config_path = os.path.join(BASE_DIR, 'config', 'config.json')
         monitor = RouterMonitor(config_file=config_path)
     return monitor
@@ -30,7 +30,7 @@ def get_monitor():
 def start_background_monitor():
     global background_monitor
     if background_monitor is None:
-        from src.background_monitor import BackgroundMonitor
+        from .background_monitor import BackgroundMonitor
         
         config_path = os.path.join(BASE_DIR, 'config', 'config.json')
         with open(config_path, 'r', encoding='utf-8') as f:
