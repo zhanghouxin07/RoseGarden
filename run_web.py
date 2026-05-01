@@ -11,7 +11,7 @@ from src.logger import setup_logger
 from src.web_app import app, start_background_monitor
 
 try:
-    from mdns_service import MDNSService
+    from src.mdns_service import MDNSService
     MDNS_AVAILABLE = True
 except ImportError:
     MDNS_AVAILABLE = False
